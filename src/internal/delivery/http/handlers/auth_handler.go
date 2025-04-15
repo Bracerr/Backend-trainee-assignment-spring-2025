@@ -51,7 +51,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Email == "" || req.Password == "" || req.Role == "" {
-		h.sendError(w, "Ошибка валидации полей", http.StatusBadRequest)
+		h.sendError(w, "Отсутствуют обязательные поля", http.StatusBadRequest)
 		return
 	}
 
@@ -67,8 +67,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			h.sendError(w, "Пользователь уже существует", http.StatusBadRequest)
 		case apperrors.ErrInvalidRole:
 			h.sendError(w, "Недопустимая роль", http.StatusBadRequest)
-		case apperrors.ErrValidationFailed:
-			h.sendError(w, "Ошибка валидации полей", http.StatusBadRequest)
 		default:
 			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		}
@@ -88,7 +86,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Email == "" || req.Password == "" {
-		h.sendError(w, "Не переданы email или пароль", http.StatusUnauthorized)
+		h.sendError(w, "Отсутствуют обязательные поля", http.StatusUnauthorized)
 		return
 	}
 

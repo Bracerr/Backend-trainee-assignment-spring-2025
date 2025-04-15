@@ -99,7 +99,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			mockBehavior: func(s *MockAuthService) {
 			},
 			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Ошибка валидации полей\"}\n",
+			expectedBody: "{\"message\":\"Отсутствуют обязательные поля\"}\n",
 		},
 		{
 			name: "Empty Password",
@@ -111,7 +111,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			mockBehavior: func(s *MockAuthService) {
 			},
 			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Ошибка валидации полей\"}\n",
+			expectedBody: "{\"message\":\"Отсутствуют обязательные поля\"}\n",
 		},
 	}
 
@@ -185,7 +185,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			mockBehavior: func(s *MockAuthService) {
 			},
 			expectedCode: http.StatusUnauthorized,
-			expectedBody: "{\"message\":\"Не переданы email или пароль\"}\n",
+			expectedBody: "{\"message\":\"Отсутствуют обязательные поля\"}\n",
 		},
 		{
 			name: "Empty Password",
@@ -196,7 +196,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			mockBehavior: func(s *MockAuthService) {
 			},
 			expectedCode: http.StatusUnauthorized,
-			expectedBody: "{\"message\":\"Не переданы email или пароль\"}\n",
+			expectedBody: "{\"message\":\"Отсутствуют обязательные поля\"}\n",
 		},
 	}
 
