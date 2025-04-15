@@ -4,13 +4,15 @@ import (
 	"testing"
 
 	"avito-backend/src/pkg/jwt"
+	"avito-backend/src/internal/repository"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAuthService_GenerateToken(t *testing.T) {
 	tokenManager := jwt.NewTokenManager("test-secret", "24h")
-	service := NewAuthService(tokenManager)
+	userRepo := &repository.UserRepository{}
+	service := NewAuthService(userRepo, tokenManager)
 
 	tests := []struct {
 		name    string
