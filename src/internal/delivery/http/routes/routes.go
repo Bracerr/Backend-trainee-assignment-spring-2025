@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 )
 
 type Router struct {
@@ -20,14 +21,21 @@ func NewRouter(handler *handlers.AuthHandler) *Router {
 func (r *Router) InitRoutes() *chi.Mux {
 	router := chi.NewRouter()
 
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
+
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
 
-	router.Group(func(router chi.Router) {
-		router.Post("/dummyLogin", r.handler.DummyLogin)
-	})
+	router.Post("/dummyLogin", r.handler.DummyLogin)
 
 	return router
 }
