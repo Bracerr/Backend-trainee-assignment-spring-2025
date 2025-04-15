@@ -9,7 +9,7 @@ import (
 )
 
 func TestAuthService_GenerateToken(t *testing.T) {
-	tokenManager := jwt.NewTokenManager("test-secret")
+	tokenManager := jwt.NewTokenManager("test-secret", "24h")
 	service := NewAuthService(tokenManager)
 
 	tests := []struct {

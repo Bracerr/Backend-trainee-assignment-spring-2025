@@ -13,17 +13,26 @@ type Claims struct {
 
 type TokenManager struct {
 	signingKey string
+	duration   string
 }
 
-func NewTokenManager(signingKey string) *TokenManager {
-	return &TokenManager{signingKey: signingKey}
+func NewTokenManager(signingKey string, duration string) *TokenManager {
+	return &TokenManager{
+		signingKey: signingKey,
+		duration:   duration,
+	}
 }
 
 func (m *TokenManager) GenerateToken(role string) (string, error) {
+	duration, err := time.ParseDuration(m.duration)
+	if err != nil {
+		return "", err
+	}
+
 	claims := Claims{
 		Role: role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}

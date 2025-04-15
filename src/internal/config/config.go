@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	ServerPort    string
-	JWTSigningKey string
+	ServerPort       string
+	JWTSigningKey    string
+	JWTTokenDuration string
 }
 
 func LoadConfig() (*Config, error) {
@@ -17,8 +18,9 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &Config{
-		ServerPort:    getEnvVar("SERVER_PORT", "8080"),
-		JWTSigningKey: getEnvVar("JWT_SIGNING_KEY", "default-secret-key"),
+		ServerPort:       getEnvVar("SERVER_PORT", "8080"),
+		JWTSigningKey:    getEnvVar("JWT_SIGNING_KEY", "default-secret-key"),
+		JWTTokenDuration: getEnvVar("JWT_TOKEN_DURATION", "24h"),
 	}, nil
 }
 

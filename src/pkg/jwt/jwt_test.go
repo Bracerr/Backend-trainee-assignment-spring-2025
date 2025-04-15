@@ -9,7 +9,7 @@ import (
 )
 
 func TestTokenManager_GenerateToken(t *testing.T) {
-	manager := NewTokenManager("test-secret")
+	manager := NewTokenManager("test-secret", "24h")
 
 	tests := []struct {
 		name    string

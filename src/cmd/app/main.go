@@ -18,7 +18,7 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
-	tokenManager := jwt.NewTokenManager(cfg.JWTSigningKey)
+	tokenManager := jwt.NewTokenManager(cfg.JWTSigningKey, cfg.JWTTokenDuration)
 	authService := service.NewAuthService(tokenManager)
 	authHandler := handlers.NewAuthHandler(authService)
 
