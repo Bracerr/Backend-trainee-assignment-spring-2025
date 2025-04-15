@@ -3,11 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"net/mail"
 
 	"avito-backend/src/internal/apperrors"
 	"avito-backend/src/internal/delivery/http/dto/request"
 	"avito-backend/src/internal/delivery/http/dto/response"
-	"avito-backend/src/internal/domain/models"
 	"avito-backend/src/internal/service"
 )
 
@@ -28,14 +28,14 @@ func (h *AuthHandler) DummyLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Role != string(models.EmployeeRole) && req.Role != string(models.ModeratorRole) {
-		h.sendError(w, "Недопустимая роль", http.StatusBadRequest)
-		return
-	}
-
 	token, err := h.authService.GenerateToken(req.Role)
 	if err != nil {
-		h.sendError(w, err.Error(), http.StatusInternalServerError)
+		switch err {
+		case apperrors.ErrInvalidRole:
+			h.sendError(w, "Недопустимая роль", http.StatusBadRequest)
+		default:
+			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -50,8 +50,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Role != string(models.EmployeeRole) && req.Role != string(models.ModeratorRole) {
-		h.sendError(w, "Недопустимая роль", http.StatusBadRequest)
+	if req.Email == "" || req.Password == "" || req.Role == "" {
+		h.sendError(w, "Ошибка валидации полей", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		h.sendError(w, "Неверный формат email", http.StatusBadRequest)
 		return
 	}
 
@@ -60,6 +65,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		switch err {
 		case apperrors.ErrUserAlreadyExists:
 			h.sendError(w, "Пользователь уже существует", http.StatusBadRequest)
+		case apperrors.ErrInvalidRole:
+			h.sendError(w, "Недопустимая роль", http.StatusBadRequest)
+		case apperrors.ErrValidationFailed:
+			h.sendError(w, "Ошибка валидации полей", http.StatusBadRequest)
 		default:
 			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		}
@@ -75,6 +84,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req request.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.sendError(w, "Неверный формат запроса", http.StatusBadRequest)
+		return
+	}
+
+	if req.Email == "" || req.Password == "" {
+		h.sendError(w, "Не переданы email или пароль", http.StatusUnauthorized)
 		return
 	}
 

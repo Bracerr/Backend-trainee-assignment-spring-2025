@@ -17,18 +17,29 @@ type AuthServiceInterface interface {
 }
 
 type AuthService struct {
-	userRepo     *repository.UserRepository
+	userRepo     repository.UserRepositoryInterface
 	tokenManager *jwt.TokenManager
 }
 
-func NewAuthService(userRepo *repository.UserRepository, tokenManager *jwt.TokenManager) AuthServiceInterface {
+func NewAuthService(userRepo repository.UserRepositoryInterface, tokenManager *jwt.TokenManager) AuthServiceInterface {
 	return &AuthService{
 		userRepo:     userRepo,
 		tokenManager: tokenManager,
 	}
 }
 
+func (s *AuthService) validateRole(role string) error {
+	if role != string(models.EmployeeRole) && role != string(models.ModeratorRole) {
+		return apperrors.ErrInvalidRole
+	}
+	return nil
+}
+
 func (s *AuthService) Register(email, password, role string) (*models.User, error) {
+	if err := s.validateRole(role); err != nil {
+		return nil, err
+	}
+
 	if _, err := s.userRepo.GetByEmail(email); err == nil {
 		return nil, apperrors.ErrUserAlreadyExists
 	}
@@ -65,6 +76,10 @@ func (s *AuthService) Login(email, password string) (string, error) {
 	return s.tokenManager.GenerateToken(user.Role)
 }
 
+// Выведено в отдельную функцию чтобы не тащить tokenManager в AuthHandler
 func (s *AuthService) GenerateToken(role string) (string, error) {
+	if err := s.validateRole(role); err != nil {
+		return "", err
+	}
 	return s.tokenManager.GenerateToken(role)
 }
