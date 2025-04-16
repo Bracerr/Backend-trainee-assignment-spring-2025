@@ -5,6 +5,7 @@ import (
 	"avito-backend/src/internal/delivery/http/dto/request"
 	"avito-backend/src/internal/service"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -69,9 +70,12 @@ func (h *PVZHandler) CreateReception(w http.ResponseWriter, r *http.Request) {
 	reception, err := h.pvzService.CreateReception(pvzID)
 	if err != nil {
 		switch err {
+		case apperrors.ErrPVZNotFound:
+			h.sendError(w, "ПВЗ не найден", http.StatusBadRequest)
 		case apperrors.ErrActiveReceptionExists:
 			h.sendError(w, "Уже есть активная приемка", http.StatusBadRequest)
 		default:
+			log.Println(err)
 			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		}
 		return
@@ -80,6 +84,48 @@ func (h *PVZHandler) CreateReception(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(reception)
+}
+
+func (h *PVZHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
+	var req request.CreateProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.sendError(w, "Неверный формат запроса", http.StatusBadRequest)
+		return
+	}
+
+	if req.PVZID == "" {
+		h.sendError(w, "ID ПВЗ обязателен", http.StatusBadRequest)
+		return
+	}
+	if req.Type == "" {
+		h.sendError(w, "Тип товара обязателен", http.StatusBadRequest)
+		return
+	}
+
+	pvzID, err := uuid.Parse(req.PVZID)
+	if err != nil {
+		h.sendError(w, "Неверный формат ID ПВЗ", http.StatusBadRequest)
+		return
+	}
+
+	product, err := h.pvzService.CreateProduct(pvzID, req.Type)
+	if err != nil {
+		switch err {
+		case apperrors.ErrNoActiveReception:
+			h.sendError(w, "Нет активной приемки", http.StatusBadRequest)
+		case apperrors.ErrPVZNotFound:
+			h.sendError(w, "ПВЗ не найден", http.StatusBadRequest)
+		case apperrors.ErrInvalidProductType:
+			h.sendError(w, "Недопустимый тип товара", http.StatusBadRequest)
+		default:
+			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(product)
 }
 
 func (h *PVZHandler) sendError(w http.ResponseWriter, message string, code int) {

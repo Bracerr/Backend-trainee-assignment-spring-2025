@@ -13,6 +13,7 @@ type PVZRepositoryInterface interface {
 	GetByID(id uuid.UUID) (*models.PVZ, error)
 	CreateReception(reception *models.Reception) error
 	GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.Reception, error)
+	CreateProduct(product *models.Product) error
 }
 
 type PVZRepository struct {
@@ -71,11 +72,11 @@ func (r *PVZRepository) CreateReception(reception *models.Reception) error {
 }
 
 func (r *PVZRepository) GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.Reception, error) {
-	query := psql.Select("id", "date_time", "pvz_id", "status").
-		From("receptions").
+	query := psql.Select("r.id", "r.date_time", "r.pvz_id", "r.status").
+		From("receptions r").
 		Where(sq.And{
-			sq.Eq{"pvz_id": pvzID},
-			sq.Eq{"status": models.InProgress},
+			sq.Eq{"r.pvz_id": pvzID},
+			sq.Eq{"r.status": models.InProgress},
 		})
 
 	sqlQuery, args, err := query.ToSql()
@@ -97,5 +98,53 @@ func (r *PVZRepository) GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.Rece
 		return nil, err
 	}
 
+	productsQuery := psql.Select("id", "date_time", "type", "reception_id").
+		From("products").
+		Where(sq.Eq{"reception_id": reception.ID})
+
+	sqlQuery, args, err = productsQuery.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(sqlQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []models.Product
+	for rows.Next() {
+		var product models.Product
+		err = rows.Scan(
+			&product.ID,
+			&product.DateTime,
+			&product.Type,
+			&product.ReceptionID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, product)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	reception.Products = products
 	return reception, nil
+}
+
+func (r *PVZRepository) CreateProduct(product *models.Product) error {
+	query := psql.Insert("products").
+		Columns("id", "date_time", "type", "reception_id").
+		Values(product.ID, product.DateTime, product.Type, product.ReceptionID)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Exec(sqlQuery, args...)
+	return err
 }

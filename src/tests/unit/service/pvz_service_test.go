@@ -4,6 +4,7 @@ import (
 	"avito-backend/src/internal/apperrors"
 	"avito-backend/src/internal/domain/models"
 	"avito-backend/src/internal/service"
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -40,6 +41,11 @@ func (m *MockPVZRepository) GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models.Reception), args.Error(1)
+}
+
+func (m *MockPVZRepository) CreateProduct(product *models.Product) error {
+	args := m.Called(product)
+	return args.Error(0)
 }
 
 func TestPVZService_Create(t *testing.T) {
@@ -143,9 +149,9 @@ func TestPVZService_CreateReception(t *testing.T) {
 			name:  "PVZ Not Found",
 			pvzID: uuid.New(),
 			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(nil, errors.New("not found"))
+				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(nil, sql.ErrNoRows)
 			},
-			wantErr: errors.New("not found"),
+			wantErr: apperrors.ErrPVZNotFound,
 		},
 		{
 			name:  "Active Reception Exists",

@@ -4,6 +4,7 @@ import (
 	"avito-backend/src/internal/apperrors"
 	"avito-backend/src/internal/domain/models"
 	"avito-backend/src/internal/repository"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 type PVZServiceInterface interface {
 	Create(city string) (*models.PVZ, error)
 	CreateReception(pvzID uuid.UUID) (*models.Reception, error)
+	CreateProduct(pvzID uuid.UUID, productType string) (*models.Product, error)
 }
 
 type PVZService struct {
@@ -45,6 +47,9 @@ func (s *PVZService) Create(city string) (*models.PVZ, error) {
 
 func (s *PVZService) CreateReception(pvzID uuid.UUID) (*models.Reception, error) {
 	_, err := s.pvzRepo.GetByID(pvzID)
+	if err == sql.ErrNoRows {
+		return nil, apperrors.ErrPVZNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -69,4 +74,43 @@ func (s *PVZService) CreateReception(pvzID uuid.UUID) (*models.Reception, error)
 	}
 
 	return reception, nil
+}
+
+func (s *PVZService) CreateProduct(pvzID uuid.UUID, productType string) (*models.Product, error) {
+	pvz, err := s.pvzRepo.GetByID(pvzID)
+	if err == sql.ErrNoRows {
+		return nil, apperrors.ErrPVZNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if pvz == nil {
+		return nil, apperrors.ErrPVZNotFound
+	}
+
+	activeReception, err := s.pvzRepo.GetActiveReceptionByPVZID(pvzID)
+	if err != nil {
+		return nil, err
+	}
+	if activeReception == nil {
+		return nil, apperrors.ErrNoActiveReception
+	}
+
+	pType := models.ProductType(productType)
+	if !pType.IsValid() {
+		return nil, apperrors.ErrInvalidProductType
+	}
+
+	product := &models.Product{
+		ID:          uuid.New(),
+		DateTime:    time.Now(),
+		Type:        pType,
+		ReceptionID: activeReception.ID,
+	}
+
+	if err := s.pvzRepo.CreateProduct(product); err != nil {
+		return nil, err
+	}
+
+	return product, nil
 }

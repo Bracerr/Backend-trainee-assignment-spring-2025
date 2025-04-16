@@ -9,4 +9,7 @@ var (
 	ErrValidationFailed      = errors.New("validation failed")
 	ErrInvalidCity           = errors.New("invalid city")
 	ErrActiveReceptionExists = errors.New("active reception exists")
+	ErrNoActiveReception     = errors.New("no active reception")
+	ErrInvalidProductType    = errors.New("invalid product type")
+	ErrPVZNotFound           = errors.New("pvz not found")
 )

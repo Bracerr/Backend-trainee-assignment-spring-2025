@@ -41,6 +41,14 @@ func (m *MockPVZService) CreateReception(pvzID uuid.UUID) (*models.Reception, er
 	return args.Get(0).(*models.Reception), args.Error(1)
 }
 
+func (m *MockPVZService) CreateProduct(pvzID uuid.UUID, productType string) (*models.Product, error) {
+	args := m.Called(pvzID, productType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Product), args.Error(1)
+}
+
 func TestPVZHandler_Create(t *testing.T) {
 	tests := []struct {
 		name         string

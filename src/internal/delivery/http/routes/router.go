@@ -57,6 +57,7 @@ func (r *Router) InitRoutes() *chi.Mux {
 		router.Group(func(router chi.Router) {
 			router.Use(appmiddleware.RequireRole(models.EmployeeRole))
 			router.Post("/receptions", r.pvzHandler.CreateReception)
+			router.Post("/products", r.pvzHandler.CreateProduct)
 		})
 	})
 

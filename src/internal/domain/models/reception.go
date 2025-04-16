@@ -18,4 +18,5 @@ type Reception struct {
 	DateTime time.Time       `json:"dateTime"`
 	PVZID    uuid.UUID       `json:"pvzId"`
 	Status   ReceptionStatus `json:"status"`
+	Products []Product       `json:"products"`
 }
