@@ -29,7 +29,8 @@ func NewAuthService(userRepo repository.UserRepositoryInterface, tokenManager *j
 }
 
 func (s *AuthService) validateRole(role string) error {
-	if role != string(models.EmployeeRole) && role != string(models.ModeratorRole) {
+	roleEnum := models.Role(role)
+	if !roleEnum.IsValid() {
 		return apperrors.ErrInvalidRole
 	}
 	return nil

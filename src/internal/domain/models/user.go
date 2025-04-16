@@ -15,3 +15,7 @@ type User struct {
 	Role         string    `json:"role"`
 	PasswordHash string    `json:"-"`
 }
+
+func (r Role) IsValid() bool {
+	return r == EmployeeRole || r == ModeratorRole
+}

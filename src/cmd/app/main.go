@@ -14,7 +14,6 @@ import (
 	"avito-backend/src/internal/service"
 	"avito-backend/src/pkg/database"
 	"avito-backend/src/pkg/jwt"
-	// _ "github.com/lib/pq"
 )
 
 func main() {
@@ -39,7 +38,11 @@ func main() {
 	authService := service.NewAuthService(userRepo, tokenManager)
 	authHandler := handlers.NewAuthHandler(authService)
 
-	router := routes.NewRouter(authHandler)
+	pvzRepo := repository.NewPVZRepository(db)
+	pvzService := service.NewPVZService(pvzRepo)
+	pvzHandler := handlers.NewPVZHandler(pvzService)
+
+	router := routes.NewRouter(authHandler, pvzHandler, tokenManager)
 
 	serverAddr := fmt.Sprintf(":%s", cfg.ServerPort)
 	log.Printf("Сервер запущен на порту %s", cfg.ServerPort)

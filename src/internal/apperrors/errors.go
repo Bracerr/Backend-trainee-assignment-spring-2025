@@ -7,4 +7,5 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidRole        = errors.New("invalid role")
 	ErrValidationFailed   = errors.New("validation failed")
+	ErrInvalidCity        = errors.New("invalid city")
 )
