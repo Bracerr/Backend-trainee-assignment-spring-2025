@@ -25,6 +25,11 @@ func (h *PVZHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.City == "" {
+		h.sendError(w, "Город не может быть пустым", http.StatusBadRequest)
+		return
+	}
+
 	pvz, err := h.pvzService.Create(req.City)
 	if err != nil {
 		switch err {
