@@ -77,15 +77,17 @@ func (s *PVZService) CreateReception(pvzID uuid.UUID) (*models.Reception, error)
 }
 
 func (s *PVZService) CreateProduct(pvzID uuid.UUID, productType string) (*models.Product, error) {
-	pvz, err := s.pvzRepo.GetByID(pvzID)
+	pType := models.ProductType(productType)
+	if !pType.IsValid() {
+		return nil, apperrors.ErrInvalidProductType
+	}
+
+	_, err := s.pvzRepo.GetByID(pvzID)
 	if err == sql.ErrNoRows {
 		return nil, apperrors.ErrPVZNotFound
 	}
 	if err != nil {
 		return nil, err
-	}
-	if pvz == nil {
-		return nil, apperrors.ErrPVZNotFound
 	}
 
 	activeReception, err := s.pvzRepo.GetActiveReceptionByPVZID(pvzID)
@@ -94,11 +96,6 @@ func (s *PVZService) CreateProduct(pvzID uuid.UUID, productType string) (*models
 	}
 	if activeReception == nil {
 		return nil, apperrors.ErrNoActiveReception
-	}
-
-	pType := models.ProductType(productType)
-	if !pType.IsValid() {
-		return nil, apperrors.ErrInvalidProductType
 	}
 
 	product := &models.Product{
