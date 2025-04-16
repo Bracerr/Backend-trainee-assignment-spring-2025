@@ -12,9 +12,9 @@ import (
 )
 
 type Router struct {
-	authHandler      *handlers.AuthHandler
-	pvzHandler       *handlers.PVZHandler
-	tokenManager     *jwt.TokenManager
+	authHandler  *handlers.AuthHandler
+	pvzHandler   *handlers.PVZHandler
+	tokenManager *jwt.TokenManager
 }
 
 func NewRouter(authHandler *handlers.AuthHandler, pvzHandler *handlers.PVZHandler, tokenManager *jwt.TokenManager) *Router {
@@ -58,6 +58,7 @@ func (r *Router) InitRoutes() *chi.Mux {
 			router.Use(appmiddleware.RequireRole(models.EmployeeRole))
 			router.Post("/receptions", r.pvzHandler.CreateReception)
 			router.Post("/products", r.pvzHandler.CreateProduct)
+			router.Post("/pvz/{pvzId}/delete_last_product", r.pvzHandler.DeleteLastProduct)
 		})
 	})
 

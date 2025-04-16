@@ -14,6 +14,7 @@ type PVZServiceInterface interface {
 	Create(city string) (*models.PVZ, error)
 	CreateReception(pvzID uuid.UUID) (*models.Reception, error)
 	CreateProduct(pvzID uuid.UUID, productType string) (*models.Product, error)
+	DeleteLastProduct(pvzID uuid.UUID) error
 }
 
 type PVZService struct {
@@ -110,4 +111,35 @@ func (s *PVZService) CreateProduct(pvzID uuid.UUID, productType string) (*models
 	}
 
 	return product, nil
+}
+
+func (s *PVZService) DeleteLastProduct(pvzID uuid.UUID) error {
+	_, err := s.pvzRepo.GetByID(pvzID)
+	if err == sql.ErrNoRows {
+		return apperrors.ErrPVZNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	activeReception, err := s.pvzRepo.GetActiveReceptionByPVZID(pvzID)
+	if err != nil {
+		return err
+	}
+	if activeReception == nil {
+		return apperrors.ErrNoActiveReception
+	}
+	if activeReception.Status == models.Closed {
+		return apperrors.ErrReceptionClosed
+	}
+
+	lastProduct, err := s.pvzRepo.GetLastProductInReception(activeReception.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return apperrors.ErrNoProductsToDelete
+		}
+		return err
+	}
+
+	return s.pvzRepo.DeleteProduct(lastProduct.ID)
 }
