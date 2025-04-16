@@ -36,6 +36,8 @@ func (r *Router) InitRoutes() *chi.Mux {
 	router.Use(middleware.RealIP)
 
 	router.Post("/dummyLogin", r.handler.DummyLogin)
+	router.Post("/register", r.handler.Register)
+	router.Post("/login", r.handler.Login)
 
 	return router
 }

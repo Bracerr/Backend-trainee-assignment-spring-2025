@@ -1,5 +1,7 @@
 package models
 
+import "github.com/google/uuid"
+
 type Role string
 
 const (
@@ -8,5 +10,8 @@ const (
 )
 
 type User struct {
-	Role Role `json:"role"`
+	ID           uuid.UUID `json:"id"`
+	Email        string    `json:"email"`
+	Role         string    `json:"role"`
+	PasswordHash string    `json:"-"`
 }
