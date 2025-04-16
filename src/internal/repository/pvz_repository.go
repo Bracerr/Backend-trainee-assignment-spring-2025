@@ -4,13 +4,15 @@ import (
 	"avito-backend/src/internal/domain/models"
 	"database/sql"
 
-	"github.com/Masterminds/squirrel"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 )
 
 type PVZRepositoryInterface interface {
 	Create(pvz *models.PVZ) error
 	GetByID(id uuid.UUID) (*models.PVZ, error)
+	CreateReception(reception *models.Reception) error
+	GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.Reception, error)
 }
 
 type PVZRepository struct {
@@ -38,7 +40,7 @@ func (r *PVZRepository) Create(pvz *models.PVZ) error {
 func (r *PVZRepository) GetByID(id uuid.UUID) (*models.PVZ, error) {
 	query := psql.Select("id", "registration_date", "city").
 		From("pvz").
-		Where(squirrel.Eq{"id": id})
+		Where(sq.Eq{"id": id})
 
 	sql, args, err := query.ToSql()
 	if err != nil {
@@ -52,4 +54,48 @@ func (r *PVZRepository) GetByID(id uuid.UUID) (*models.PVZ, error) {
 	}
 
 	return pvz, nil
+}
+
+func (r *PVZRepository) CreateReception(reception *models.Reception) error {
+	query := psql.Insert("receptions").
+		Columns("id", "date_time", "pvz_id", "status").
+		Values(reception.ID, reception.DateTime, reception.PVZID, reception.Status)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Exec(sqlQuery, args...)
+	return err
+}
+
+func (r *PVZRepository) GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.Reception, error) {
+	query := psql.Select("id", "date_time", "pvz_id", "status").
+		From("receptions").
+		Where(sq.And{
+			sq.Eq{"pvz_id": pvzID},
+			sq.Eq{"status": models.InProgress},
+		})
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	reception := &models.Reception{}
+	err = r.db.QueryRow(sqlQuery, args...).Scan(
+		&reception.ID,
+		&reception.DateTime,
+		&reception.PVZID,
+		&reception.Status,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return reception, nil
 }

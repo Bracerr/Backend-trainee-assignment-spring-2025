@@ -11,6 +11,7 @@ import (
 
 type PVZServiceInterface interface {
 	Create(city string) (*models.PVZ, error)
+	CreateReception(pvzID uuid.UUID) (*models.Reception, error)
 }
 
 type PVZService struct {
@@ -40,4 +41,32 @@ func (s *PVZService) Create(city string) (*models.PVZ, error) {
 	}
 
 	return pvz, nil
+}
+
+func (s *PVZService) CreateReception(pvzID uuid.UUID) (*models.Reception, error) {
+	_, err := s.pvzRepo.GetByID(pvzID)
+	if err != nil {
+		return nil, err
+	}
+
+	activeReception, err := s.pvzRepo.GetActiveReceptionByPVZID(pvzID)
+	if err != nil {
+		return nil, err
+	}
+	if activeReception != nil {
+		return nil, apperrors.ErrActiveReceptionExists
+	}
+
+	reception := &models.Reception{
+		ID:       uuid.New(),
+		DateTime: time.Now(),
+		PVZID:    pvzID,
+		Status:   models.InProgress,
+	}
+
+	if err := s.pvzRepo.CreateReception(reception); err != nil {
+		return nil, err
+	}
+
+	return reception, nil
 }

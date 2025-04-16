@@ -29,6 +29,19 @@ func (m *MockPVZRepository) GetByID(id uuid.UUID) (*models.PVZ, error) {
 	return args.Get(0).(*models.PVZ), args.Error(1)
 }
 
+func (m *MockPVZRepository) CreateReception(reception *models.Reception) error {
+	args := m.Called(reception)
+	return args.Error(0)
+}
+
+func (m *MockPVZRepository) GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.Reception, error) {
+	args := m.Called(pvzID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Reception), args.Error(1)
+}
+
 func TestPVZService_Create(t *testing.T) {
 	tests := []struct {
 		name         string
