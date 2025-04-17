@@ -59,6 +59,7 @@ func (r *Router) InitRoutes() *chi.Mux {
 			router.Post("/receptions", r.pvzHandler.CreateReception)
 			router.Post("/products", r.pvzHandler.CreateProduct)
 			router.Post("/pvz/{pvzId}/delete_last_product", r.pvzHandler.DeleteLastProduct)
+			router.Post("/pvz/{pvzId}/close_last_reception", r.pvzHandler.CloseLastReception)
 		})
 	})
 

@@ -162,6 +162,39 @@ func (h *PVZHandler) DeleteLastProduct(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (h *PVZHandler) CloseLastReception(w http.ResponseWriter, r *http.Request) {
+	pvzIDStr := chi.URLParam(r, "pvzId")
+	if pvzIDStr == "" {
+		h.sendError(w, "ID ПВЗ обязателен", http.StatusBadRequest)
+		return
+	}
+
+	pvzID, err := uuid.Parse(pvzIDStr)
+	if err != nil {
+		h.sendError(w, "Неверный формат ID ПВЗ", http.StatusBadRequest)
+		return
+	}
+
+	reception, err := h.pvzService.CloseLastReception(pvzID)
+	if err != nil {
+		switch err {
+		case apperrors.ErrPVZNotFound:
+			h.sendError(w, "ПВЗ не найден", http.StatusBadRequest)
+		case apperrors.ErrNoActiveReception:
+			h.sendError(w, "Нет активной приемки", http.StatusBadRequest)
+		case apperrors.ErrReceptionAlreadyClosed:
+			h.sendError(w, "Приемка уже закрыта", http.StatusBadRequest)
+		default:
+			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(reception)
+}
+
 func (h *PVZHandler) sendError(w http.ResponseWriter, message string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

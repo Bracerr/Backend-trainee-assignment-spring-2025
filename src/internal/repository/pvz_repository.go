@@ -16,6 +16,7 @@ type PVZRepositoryInterface interface {
 	CreateProduct(product *models.Product) error
 	GetLastProductInReception(receptionID uuid.UUID) (*models.Product, error)
 	DeleteProduct(productID uuid.UUID) error
+	UpdateReception(reception *models.Reception) error
 }
 
 type PVZRepository struct {
@@ -183,6 +184,32 @@ func (r *PVZRepository) GetLastProductInReception(receptionID uuid.UUID) (*model
 func (r *PVZRepository) DeleteProduct(productID uuid.UUID) error {
 	query := psql.Delete("products").
 		Where(sq.Eq{"id": productID})
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		return err
+	}
+
+	result, err := r.db.Exec(sqlQuery, args...)
+	if err != nil {
+		return err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (r *PVZRepository) UpdateReception(reception *models.Reception) error {
+	query := psql.Update("receptions").
+		Set("status", reception.Status).
+		Where(sq.Eq{"id": reception.ID})
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
