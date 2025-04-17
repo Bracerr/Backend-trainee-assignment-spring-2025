@@ -155,7 +155,6 @@ func TestPVZHandler_Create_InvalidJSON(t *testing.T) {
 	assert.Equal(t, "{\"message\":\"Неверный формат запроса\"}\n", w.Body.String())
 }
 
-
 func TestPVZHandler_GetPVZs(t *testing.T) {
 	tests := []struct {
 		name         string
