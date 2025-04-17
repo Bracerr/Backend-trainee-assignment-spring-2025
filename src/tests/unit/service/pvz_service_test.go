@@ -62,6 +62,11 @@ func (m *MockPVZRepository) GetLastProductInReception(receptionID uuid.UUID) (*m
 	return args.Get(0).(*models.Product), args.Error(1)
 }
 
+func (m *MockPVZRepository) UpdateReception(reception *models.Reception) error {
+	args := m.Called(reception)
+	return args.Error(0)
+}
+
 func TestPVZService_Create(t *testing.T) {
 	tests := []struct {
 		name         string
