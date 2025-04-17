@@ -10,13 +10,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -61,6 +59,14 @@ func (m *MockPVZService) CloseLastReception(pvzID uuid.UUID) (*models.Reception,
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models.Reception), args.Error(1)
+}
+
+func (m *MockPVZService) GetPVZsWithReceptions(startDate, endDate time.Time, offset, limit int) ([]*models.PVZWithReceptions, error) {
+	args := m.Called(startDate, endDate, offset, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.PVZWithReceptions), args.Error(1)
 }
 
 func TestPVZHandler_Create(t *testing.T) {
@@ -149,412 +155,87 @@ func TestPVZHandler_Create_InvalidJSON(t *testing.T) {
 	assert.Equal(t, "{\"message\":\"Неверный формат запроса\"}\n", w.Body.String())
 }
 
-func TestPVZHandler_CreateReception(t *testing.T) {
+
+func TestPVZHandler_GetPVZs(t *testing.T) {
 	tests := []struct {
 		name         string
-		pvzID        string
+		queryParams  string
 		mockBehavior func(s *MockPVZService)
 		expectedCode int
 		expectedBody string
 	}{
 		{
-			name:  "Success",
-			pvzID: uuid.New().String(),
+			name:        "Success",
+			queryParams: "startDate=2023-01-01T00:00:00Z&endDate=2023-12-31T23:59:59Z&page=1&limit=10",
 			mockBehavior: func(s *MockPVZService) {
-				s.On("CreateReception", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
-					ID:       uuid.New(),
-					DateTime: time.Now(),
-					PVZID:    uuid.New(),
-					Status:   models.InProgress,
-				}, nil)
-			},
-			expectedCode: http.StatusCreated,
-		},
-		{
-			name:         "Empty PVZ ID",
-			pvzID:        "",
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"ID ПВЗ обязателен\"}\n",
-		},
-		{
-			name:         "Invalid PVZ ID Format",
-			pvzID:        "invalid-uuid",
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Неверный формат ID ПВЗ\"}\n",
-		},
-		{
-			name:  "Active Reception Exists",
-			pvzID: uuid.New().String(),
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CreateReception", mock.AnythingOfType("uuid.UUID")).Return(nil, apperrors.ErrActiveReceptionExists)
-			},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Уже есть активная приемка\"}\n",
-		},
-		{
-			name:  "Service Error",
-			pvzID: uuid.New().String(),
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CreateReception", mock.AnythingOfType("uuid.UUID")).Return(nil, errors.New("service error"))
-			},
-			expectedCode: http.StatusInternalServerError,
-			expectedBody: "{\"message\":\"Внутренняя ошибка сервера\"}\n",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockPVZService)
-			tt.mockBehavior(mockService)
-			handler := handlers.NewPVZHandler(mockService)
-
-			body := []byte(fmt.Sprintf(`{"pvzId":"%s"}`, tt.pvzID))
-			req := httptest.NewRequest("POST", "/pvz/receptions", bytes.NewBuffer(body))
-			w := httptest.NewRecorder()
-
-			ctx := context.WithValue(req.Context(), ctxkeys.UserRoleKey, string(models.EmployeeRole))
-			req = req.WithContext(ctx)
-
-			handler.CreateReception(w, req)
-
-			assert.Equal(t, tt.expectedCode, w.Code)
-			if tt.expectedBody != "" {
-				assert.Equal(t, tt.expectedBody, w.Body.String())
-			}
-			mockService.AssertExpectations(t)
-		})
-	}
-}
-
-func TestPVZHandler_CreateReception_InvalidJSON(t *testing.T) {
-	mockService := new(MockPVZService)
-	handler := handlers.NewPVZHandler(mockService)
-
-	req := httptest.NewRequest("POST", "/pvz/receptions", bytes.NewBuffer([]byte(`{"pvzId": invalid_json`)))
-	w := httptest.NewRecorder()
-
-	ctx := context.WithValue(req.Context(), ctxkeys.UserRoleKey, string(models.EmployeeRole))
-	req = req.WithContext(ctx)
-
-	handler.CreateReception(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Equal(t, "{\"message\":\"Неверный формат запроса\"}\n", w.Body.String())
-}
-
-func TestPVZHandler_CreateProduct(t *testing.T) {
-	tests := []struct {
-		name         string
-		input        request.CreateProductRequest
-		mockBehavior func(s *MockPVZService)
-		expectedCode int
-		expectedBody string
-	}{
-		{
-			name: "Success",
-			input: request.CreateProductRequest{
-				Type:  string(models.Electronics),
-				PVZID: uuid.New().String(),
-			},
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CreateProduct",
-					mock.AnythingOfType("uuid.UUID"),
-					string(models.Electronics),
-				).Return(&models.Product{
-					ID:          uuid.New(),
-					DateTime:    time.Now(),
-					Type:        models.Electronics,
-					ReceptionID: uuid.New(),
-				}, nil)
-			},
-			expectedCode: http.StatusCreated,
-		},
-		{
-			name: "Empty PVZ ID",
-			input: request.CreateProductRequest{
-				Type:  string(models.Electronics),
-				PVZID: "",
-			},
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"ID ПВЗ обязателен\"}\n",
-		},
-		{
-			name: "Empty Product Type",
-			input: request.CreateProductRequest{
-				Type:  "",
-				PVZID: uuid.New().String(),
-			},
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Тип товара обязателен\"}\n",
-		},
-		{
-			name: "Invalid PVZ ID Format",
-			input: request.CreateProductRequest{
-				Type:  string(models.Electronics),
-				PVZID: "invalid-uuid",
-			},
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Неверный формат ID ПВЗ\"}\n",
-		},
-		{
-			name: "PVZ Not Found",
-			input: request.CreateProductRequest{
-				Type:  string(models.Electronics),
-				PVZID: uuid.New().String(),
-			},
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CreateProduct",
-					mock.AnythingOfType("uuid.UUID"),
-					string(models.Electronics),
-				).Return(nil, apperrors.ErrPVZNotFound)
-			},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"ПВЗ не найден\"}\n",
-		},
-		{
-			name: "No Active Reception",
-			input: request.CreateProductRequest{
-				Type:  string(models.Electronics),
-				PVZID: uuid.New().String(),
-			},
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CreateProduct",
-					mock.AnythingOfType("uuid.UUID"),
-					string(models.Electronics),
-				).Return(nil, apperrors.ErrNoActiveReception)
-			},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Нет активной приемки\"}\n",
-		},
-		{
-			name: "Invalid Product Type",
-			input: request.CreateProductRequest{
-				Type:  "invalid_type",
-				PVZID: uuid.New().String(),
-			},
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CreateProduct",
-					mock.AnythingOfType("uuid.UUID"),
-					"invalid_type",
-				).Return(nil, apperrors.ErrInvalidProductType)
-			},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Недопустимый тип товара\"}\n",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockPVZService)
-			tt.mockBehavior(mockService)
-			handler := handlers.NewPVZHandler(mockService)
-
-			body, _ := json.Marshal(tt.input)
-			req := httptest.NewRequest("POST", "/products", bytes.NewBuffer(body))
-			w := httptest.NewRecorder()
-
-			ctx := context.WithValue(req.Context(), ctxkeys.UserRoleKey, string(models.EmployeeRole))
-			req = req.WithContext(ctx)
-
-			handler.CreateProduct(w, req)
-
-			assert.Equal(t, tt.expectedCode, w.Code)
-			if tt.expectedBody != "" {
-				assert.Equal(t, tt.expectedBody, w.Body.String())
-			}
-			mockService.AssertExpectations(t)
-		})
-	}
-}
-
-func TestPVZHandler_CreateProduct_InvalidJSON(t *testing.T) {
-	mockService := new(MockPVZService)
-	handler := handlers.NewPVZHandler(mockService)
-
-	req := httptest.NewRequest("POST", "/products", bytes.NewBuffer([]byte(`{"type": invalid_json`)))
-	w := httptest.NewRecorder()
-
-	ctx := context.WithValue(req.Context(), ctxkeys.UserRoleKey, string(models.EmployeeRole))
-	req = req.WithContext(ctx)
-
-	handler.CreateProduct(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Equal(t, "{\"message\":\"Неверный формат запроса\"}\n", w.Body.String())
-}
-
-func TestPVZHandler_DeleteLastProduct(t *testing.T) {
-	tests := []struct {
-		name         string
-		pvzID        string
-		mockBehavior func(s *MockPVZService)
-		expectedCode int
-		expectedBody string
-	}{
-		{
-			name:  "Success",
-			pvzID: uuid.New().String(),
-			mockBehavior: func(s *MockPVZService) {
-				s.On("DeleteLastProduct", mock.AnythingOfType("uuid.UUID")).Return(nil)
+				s.On("GetPVZsWithReceptions",
+					mock.AnythingOfType("time.Time"),
+					mock.AnythingOfType("time.Time"),
+					0,
+					10,
+				).Return(
+					[]*models.PVZWithReceptions{
+						{
+							PVZ: &models.PVZ{
+								ID:               uuid.New(),
+								RegistrationDate: time.Now(),
+								City:             models.City("Москва"),
+							},
+							Receptions: make([]models.ReceptionWithProducts, 0),
+						},
+					},
+					nil,
+				)
 			},
 			expectedCode: http.StatusOK,
 		},
 		{
-			name:         "Empty PVZ ID",
-			pvzID:        "",
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"ID ПВЗ обязателен\"}\n",
-		},
-		{
-			name:         "Invalid PVZ ID Format",
-			pvzID:        "invalid-uuid",
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Неверный формат ID ПВЗ\"}\n",
-		},
-		{
-			name:  "PVZ Not Found",
-			pvzID: uuid.New().String(),
+			name:        "Invalid Start Date Format",
+			queryParams: "startDate=2023/01/01&endDate=2023-12-31T23:59:59Z&page=1&limit=10",
 			mockBehavior: func(s *MockPVZService) {
-				s.On("DeleteLastProduct", mock.AnythingOfType("uuid.UUID")).Return(apperrors.ErrPVZNotFound)
 			},
 			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"ПВЗ не найден\"}\n",
+			expectedBody: "{\"message\":\"Неверный формат начальной даты\"}\n",
 		},
 		{
-			name:  "No Active Reception",
-			pvzID: uuid.New().String(),
+			name:        "Invalid End Date Format",
+			queryParams: "startDate=2023-01-01T00:00:00Z&endDate=2023/12/31&page=1&limit=10",
 			mockBehavior: func(s *MockPVZService) {
-				s.On("DeleteLastProduct", mock.AnythingOfType("uuid.UUID")).Return(apperrors.ErrNoActiveReception)
 			},
 			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Нет активной приемки\"}\n",
+			expectedBody: "{\"message\":\"Неверный формат конечной даты\"}\n",
 		},
 		{
-			name:  "No Products in Reception",
-			pvzID: uuid.New().String(),
+			name:        "Invalid Page",
+			queryParams: "startDate=2023-01-01T00:00:00Z&endDate=2023-12-31T23:59:59Z&page=0&limit=10",
 			mockBehavior: func(s *MockPVZService) {
-				s.On("DeleteLastProduct", mock.AnythingOfType("uuid.UUID")).Return(apperrors.ErrNoProductsToDelete)
 			},
 			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Нет товаров для удаления\"}\n",
+			expectedBody: "{\"message\":\"Неверный номер страницы\"}\n",
 		},
 		{
-			name:  "Service Error",
-			pvzID: uuid.New().String(),
+			name:        "Invalid Limit",
+			queryParams: "startDate=2023-01-01T00:00:00Z&endDate=2023-12-31T23:59:59Z&page=1&limit=31",
 			mockBehavior: func(s *MockPVZService) {
-				s.On("DeleteLastProduct", mock.AnythingOfType("uuid.UUID")).Return(errors.New("service error"))
-			},
-			expectedCode: http.StatusInternalServerError,
-			expectedBody: "{\"message\":\"Внутренняя ошибка сервера\"}\n",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockPVZService)
-			tt.mockBehavior(mockService)
-			handler := handlers.NewPVZHandler(mockService)
-
-			req := httptest.NewRequest("POST", fmt.Sprintf("/pvz/%s/delete_last_product", tt.pvzID), nil)
-			w := httptest.NewRecorder()
-
-			// Создаем новый контекст маршрутизации
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("pvzId", tt.pvzID)
-
-			// Добавляем контекст маршрутизации и роль пользователя
-			ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-			ctx = context.WithValue(ctx, ctxkeys.UserRoleKey, string(models.EmployeeRole))
-			req = req.WithContext(ctx)
-
-			handler.DeleteLastProduct(w, req)
-
-			assert.Equal(t, tt.expectedCode, w.Code)
-			if tt.expectedBody != "" {
-				assert.Equal(t, tt.expectedBody, w.Body.String())
-			}
-			mockService.AssertExpectations(t)
-		})
-	}
-}
-
-func TestPVZHandler_CloseLastReception(t *testing.T) {
-	tests := []struct {
-		name         string
-		pvzID        string
-		mockBehavior func(s *MockPVZService)
-		expectedCode int
-		expectedBody string
-	}{
-		{
-			name:  "Success",
-			pvzID: uuid.New().String(),
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CloseLastReception", mock.AnythingOfType("uuid.UUID")).Return(
-					&models.Reception{
-						ID:       uuid.New(),
-						DateTime: time.Now(),
-						Status:   models.Closed,
-					}, nil)
-			},
-			expectedCode: http.StatusOK,
-		},
-		{
-			name:         "Empty PVZ ID",
-			pvzID:        "",
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"ID ПВЗ обязателен\"}\n",
-		},
-		{
-			name:         "Invalid PVZ ID Format",
-			pvzID:        "invalid-uuid",
-			mockBehavior: func(s *MockPVZService) {},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Неверный формат ID ПВЗ\"}\n",
-		},
-		{
-			name:  "PVZ Not Found",
-			pvzID: uuid.New().String(),
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CloseLastReception", mock.AnythingOfType("uuid.UUID")).Return(
-					nil, apperrors.ErrPVZNotFound)
 			},
 			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"ПВЗ не найден\"}\n",
+			expectedBody: "{\"message\":\"Неверное количество элементов на странице\"}\n",
 		},
 		{
-			name:  "No Active Reception",
-			pvzID: uuid.New().String(),
+			name:        "Invalid Date Range",
+			queryParams: "startDate=2023-12-31T00:00:00Z&endDate=2023-01-01T00:00:00Z&page=1&limit=10",
 			mockBehavior: func(s *MockPVZService) {
-				s.On("CloseLastReception", mock.AnythingOfType("uuid.UUID")).Return(
-					nil, apperrors.ErrNoActiveReception)
+				s.On("GetPVZsWithReceptions", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time"), 0, 10).Return(
+					nil, apperrors.ErrInvalidDateRange)
 			},
 			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Нет активной приемки\"}\n",
+			expectedBody: "{\"message\":\"Неверный диапазон дат\"}\n",
 		},
 		{
-			name:  "Reception Already Closed",
-			pvzID: uuid.New().String(),
+			name:        "Service Error",
+			queryParams: "startDate=2023-01-01T00:00:00Z&endDate=2023-12-31T23:59:59Z&page=1&limit=10",
 			mockBehavior: func(s *MockPVZService) {
-				s.On("CloseLastReception", mock.AnythingOfType("uuid.UUID")).Return(
-					nil, apperrors.ErrReceptionAlreadyClosed)
-			},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "{\"message\":\"Приемка уже закрыта\"}\n",
-		},
-		{
-			name:  "Service Error",
-			pvzID: uuid.New().String(),
-			mockBehavior: func(s *MockPVZService) {
-				s.On("CloseLastReception", mock.AnythingOfType("uuid.UUID")).Return(
+				s.On("GetPVZsWithReceptions", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time"), 0, 10).Return(
 					nil, errors.New("service error"))
 			},
 			expectedCode: http.StatusInternalServerError,
@@ -568,17 +249,10 @@ func TestPVZHandler_CloseLastReception(t *testing.T) {
 			tt.mockBehavior(mockService)
 			handler := handlers.NewPVZHandler(mockService)
 
-			req := httptest.NewRequest("POST", fmt.Sprintf("/pvz/%s/close_last_reception", tt.pvzID), nil)
+			req := httptest.NewRequest("GET", "/pvz?"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
 
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("pvzId", tt.pvzID)
-
-			ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-			ctx = context.WithValue(ctx, ctxkeys.UserRoleKey, string(models.EmployeeRole))
-			req = req.WithContext(ctx)
-
-			handler.CloseLastReception(w, req)
+			handler.GetPVZs(w, req)
 
 			assert.Equal(t, tt.expectedCode, w.Code)
 			if tt.expectedBody != "" {

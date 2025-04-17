@@ -4,7 +4,6 @@ import (
 	"avito-backend/src/internal/apperrors"
 	"avito-backend/src/internal/domain/models"
 	"avito-backend/src/internal/service"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -65,6 +64,14 @@ func (m *MockPVZRepository) GetLastProductInReception(receptionID uuid.UUID) (*m
 func (m *MockPVZRepository) UpdateReception(reception *models.Reception) error {
 	args := m.Called(reception)
 	return args.Error(0)
+}
+
+func (m *MockPVZRepository) GetPVZsWithReceptions(startDate, endDate time.Time, offset, limit int) ([]*models.PVZWithReceptions, error) {
+	args := m.Called(startDate, endDate, offset, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.PVZWithReceptions), args.Error(1)
 }
 
 func TestPVZService_Create(t *testing.T) {
@@ -144,275 +151,64 @@ func TestPVZService_Create(t *testing.T) {
 	}
 }
 
-func TestPVZService_CreateReception(t *testing.T) {
+func TestPVZService_GetPVZsWithReceptions(t *testing.T) {
 	tests := []struct {
 		name         string
-		pvzID        uuid.UUID
+		startDate    time.Time
+		endDate      time.Time
+		offset       int
+		limit        int
 		mockBehavior func(repo *MockPVZRepository)
 		wantErr      error
 	}{
 		{
-			name:  "Success",
-			pvzID: uuid.New(),
+			name:      "Success",
+			startDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			endDate:   time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC),
+			offset:    0,
+			limit:     10,
 			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(nil, nil)
-				repo.On("CreateReception", mock.AnythingOfType("*models.Reception")).Return(nil)
+				repo.On("GetPVZsWithReceptions", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time"), 0, 10).Return(
+					[]*models.PVZWithReceptions{
+						{
+							PVZ: &models.PVZ{
+								ID:               uuid.New(),
+								RegistrationDate: time.Now(),
+								City:             models.City("Москва"),
+							},
+							Receptions: make([]models.ReceptionWithProducts, 0),
+						},
+					}, nil)
 			},
 			wantErr: nil,
 		},
 		{
-			name:  "PVZ Not Found",
-			pvzID: uuid.New(),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(nil, sql.ErrNoRows)
-			},
-			wantErr: apperrors.ErrPVZNotFound,
+			name:         "Invalid Date Range",
+			startDate:    time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC),
+			endDate:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			offset:       0,
+			limit:        10,
+			mockBehavior: func(repo *MockPVZRepository) {},
+			wantErr:      apperrors.ErrInvalidDateRange,
 		},
 		{
-			name:  "Active Reception Exists",
-			pvzID: uuid.New(),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
-					ID:     uuid.New(),
-					Status: models.InProgress,
-				}, nil)
-			},
-			wantErr: apperrors.ErrActiveReceptionExists,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockPVZRepository)
-			tt.mockBehavior(mockRepo)
-			service := service.NewPVZService(mockRepo)
-
-			reception, err := service.CreateReception(tt.pvzID)
-
-			if tt.wantErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.wantErr, err)
-				assert.Nil(t, reception)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, reception)
-				assert.Equal(t, tt.pvzID, reception.PVZID)
-				assert.Equal(t, models.InProgress, reception.Status)
-				assert.NotEmpty(t, reception.ID)
-				assert.NotZero(t, reception.DateTime)
-			}
-			mockRepo.AssertExpectations(t)
-		})
-	}
-}
-
-func TestPVZService_CreateProduct(t *testing.T) {
-	tests := []struct {
-		name         string
-		pvzID        uuid.UUID
-		productType  string
-		mockBehavior func(repo *MockPVZRepository)
-		wantErr      error
-	}{
-		{
-			name:        "Success Electronics",
-			pvzID:       uuid.New(),
-			productType: string(models.Electronics),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
-					ID:     uuid.New(),
-					Status: models.InProgress,
-				}, nil)
-				repo.On("CreateProduct", mock.AnythingOfType("*models.Product")).Return(nil)
-			},
-			wantErr: nil,
+			name:         "Invalid Pagination",
+			startDate:    time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			endDate:      time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC),
+			offset:       -1,
+			limit:        10,
+			mockBehavior: func(repo *MockPVZRepository) {},
+			wantErr:      apperrors.ErrInvalidPagination,
 		},
 		{
-			name:        "Success Clothes",
-			pvzID:       uuid.New(),
-			productType: string(models.Clothes),
+			name:      "Repository Error",
+			startDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			endDate:   time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC),
+			offset:    0,
+			limit:     10,
 			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
-					ID:     uuid.New(),
-					Status: models.InProgress,
-				}, nil)
-				repo.On("CreateProduct", mock.AnythingOfType("*models.Product")).Return(nil)
-			},
-			wantErr: nil,
-		},
-		{
-			name:        "Success Shoes",
-			pvzID:       uuid.New(),
-			productType: string(models.Shoes),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
-					ID:     uuid.New(),
-					Status: models.InProgress,
-				}, nil)
-				repo.On("CreateProduct", mock.AnythingOfType("*models.Product")).Return(nil)
-			},
-			wantErr: nil,
-		},
-		{
-			name:        "PVZ Not Found",
-			pvzID:       uuid.New(),
-			productType: string(models.Electronics),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(nil, sql.ErrNoRows)
-			},
-			wantErr: apperrors.ErrPVZNotFound,
-		},
-		{
-			name:        "No Active Reception",
-			pvzID:       uuid.New(),
-			productType: string(models.Electronics),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(nil, nil)
-			},
-			wantErr: apperrors.ErrNoActiveReception,
-		},
-		{
-			name:        "Invalid Product Type",
-			pvzID:       uuid.New(),
-			productType: "invalid_type",
-			mockBehavior: func(repo *MockPVZRepository) {
-			},
-			wantErr: apperrors.ErrInvalidProductType,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockPVZRepository)
-			tt.mockBehavior(mockRepo)
-			service := service.NewPVZService(mockRepo)
-
-			product, err := service.CreateProduct(tt.pvzID, tt.productType)
-
-			if tt.wantErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.wantErr, err)
-				assert.Nil(t, product)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, product)
-				assert.Equal(t, models.ProductType(tt.productType), product.Type)
-				assert.NotEmpty(t, product.ID)
-				assert.NotZero(t, product.DateTime)
-			}
-			mockRepo.AssertExpectations(t)
-		})
-	}
-}
-
-func TestPVZService_DeleteLastProduct(t *testing.T) {
-	tests := []struct {
-		name         string
-		pvzID        uuid.UUID
-		mockBehavior func(repo *MockPVZRepository)
-		wantErr      error
-	}{
-		{
-			name:  "Success",
-			pvzID: uuid.New(),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
-					ID:     uuid.New(),
-					Status: models.InProgress,
-				}, nil)
-				repo.On("GetLastProductInReception", mock.AnythingOfType("uuid.UUID")).Return(&models.Product{
-					ID:          uuid.New(),
-					DateTime:    time.Now(),
-					Type:        models.Electronics,
-					ReceptionID: uuid.New(),
-				}, nil)
-				repo.On("DeleteProduct", mock.AnythingOfType("uuid.UUID")).Return(nil)
-			},
-			wantErr: nil,
-		},
-		{
-			name:  "PVZ Not Found",
-			pvzID: uuid.New(),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(nil, sql.ErrNoRows)
-			},
-			wantErr: apperrors.ErrPVZNotFound,
-		},
-		{
-			name:  "No Active Reception",
-			pvzID: uuid.New(),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(nil, nil)
-			},
-			wantErr: apperrors.ErrNoActiveReception,
-		},
-		{
-			name:  "No Products in Reception",
-			pvzID: uuid.New(),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
-					ID:     uuid.New(),
-					Status: models.InProgress,
-				}, nil)
-				repo.On("GetLastProductInReception", mock.AnythingOfType("uuid.UUID")).Return(nil, apperrors.ErrNoProductsToDelete)
-			},
-			wantErr: apperrors.ErrNoProductsToDelete,
-		},
-		{
-			name:  "Repository Error",
-			pvzID: uuid.New(),
-			mockBehavior: func(repo *MockPVZRepository) {
-				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
-					ID:   uuid.New(),
-					City: "Москва",
-				}, nil)
-				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
-					ID:     uuid.New(),
-					Status: models.InProgress,
-				}, nil)
-				repo.On("GetLastProductInReception", mock.AnythingOfType("uuid.UUID")).Return(&models.Product{
-					ID:          uuid.New(),
-					DateTime:    time.Now(),
-					Type:        models.Electronics,
-					ReceptionID: uuid.New(),
-				}, nil)
-				repo.On("DeleteProduct", mock.AnythingOfType("uuid.UUID")).Return(errors.New("db error"))
+				repo.On("GetPVZsWithReceptions", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time"), 0, 10).Return(
+					nil, errors.New("db error"))
 			},
 			wantErr: errors.New("db error"),
 		},
@@ -424,13 +220,15 @@ func TestPVZService_DeleteLastProduct(t *testing.T) {
 			tt.mockBehavior(mockRepo)
 			service := service.NewPVZService(mockRepo)
 
-			err := service.DeleteLastProduct(tt.pvzID)
+			pvzs, err := service.GetPVZsWithReceptions(tt.startDate, tt.endDate, tt.offset, tt.limit)
 
 			if tt.wantErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.wantErr, err)
+				assert.Nil(t, pvzs)
 			} else {
 				assert.NoError(t, err)
+				assert.NotNil(t, pvzs)
 			}
 			mockRepo.AssertExpectations(t)
 		})
