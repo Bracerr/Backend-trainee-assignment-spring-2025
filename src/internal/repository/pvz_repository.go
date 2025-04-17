@@ -3,6 +3,7 @@ package repository
 import (
 	"avito-backend/src/internal/domain/models"
 	"database/sql"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ type PVZRepositoryInterface interface {
 	GetLastProductInReception(receptionID uuid.UUID) (*models.Product, error)
 	DeleteProduct(productID uuid.UUID) error
 	UpdateReception(reception *models.Reception) error
+	GetPVZsWithReceptions(startDate, endDate time.Time, offset, limit int) ([]*models.PVZWithReceptions, error)
 }
 
 type PVZRepository struct {
@@ -60,52 +62,24 @@ func (r *PVZRepository) GetByID(id uuid.UUID) (*models.PVZ, error) {
 	return pvz, nil
 }
 
-func (r *PVZRepository) CreateReception(reception *models.Reception) error {
-	query := psql.Insert("receptions").
-		Columns("id", "date_time", "pvz_id", "status").
-		Values(reception.ID, reception.DateTime, reception.PVZID, reception.Status)
+func (r *PVZRepository) GetPVZsWithReceptions(startDate, endDate time.Time, offset, limit int) ([]*models.PVZWithReceptions, error) {
+	query := psql.Select("p.id", "p.registration_date", "p.city").
+		From("pvz p").
+		LeftJoin("receptions r ON p.id = r.pvz_id")
 
-	sqlQuery, args, err := query.ToSql()
-	if err != nil {
-		return err
-	}
-
-	_, err = r.db.Exec(sqlQuery, args...)
-	return err
-}
-
-func (r *PVZRepository) GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.Reception, error) {
-	query := psql.Select("r.id", "r.date_time", "r.pvz_id", "r.status").
-		From("receptions r").
-		Where(sq.And{
-			sq.Eq{"r.pvz_id": pvzID},
-			sq.Eq{"r.status": models.InProgress},
+	if !startDate.IsZero() && !endDate.IsZero() {
+		query = query.Where(sq.And{
+			sq.GtOrEq{"r.date_time": startDate},
+			sq.LtOrEq{"r.date_time": endDate},
 		})
+	}
+
+	query = query.GroupBy("p.id", "p.registration_date", "p.city").
+		OrderBy("p.registration_date DESC").
+		Offset(uint64(offset)).
+		Limit(uint64(limit))
 
 	sqlQuery, args, err := query.ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	reception := &models.Reception{}
-	err = r.db.QueryRow(sqlQuery, args...).Scan(
-		&reception.ID,
-		&reception.DateTime,
-		&reception.PVZID,
-		&reception.Status,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	productsQuery := psql.Select("id", "date_time", "type", "reception_id").
-		From("products").
-		Where(sq.Eq{"reception_id": reception.ID})
-
-	sqlQuery, args, err = productsQuery.ToSql()
 	if err != nil {
 		return nil, err
 	}
@@ -116,118 +90,91 @@ func (r *PVZRepository) GetActiveReceptionByPVZID(pvzID uuid.UUID) (*models.Rece
 	}
 	defer rows.Close()
 
-	var products []models.Product
+	var pvzs []*models.PVZWithReceptions
 	for rows.Next() {
-		var product models.Product
-		err = rows.Scan(
-			&product.ID,
-			&product.DateTime,
-			&product.Type,
-			&product.ReceptionID,
-		)
+		pvz := &models.PVZ{}
+		err = rows.Scan(&pvz.ID, &pvz.RegistrationDate, &pvz.City)
 		if err != nil {
 			return nil, err
 		}
-		products = append(products, product)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
 
-	reception.Products = products
-	return reception, nil
-}
+		pvzWithReceptions := &models.PVZWithReceptions{
+			PVZ:        pvz,
+			Receptions: make([]models.ReceptionWithProducts, 0),
+		}
 
-func (r *PVZRepository) CreateProduct(product *models.Product) error {
-	query := psql.Insert("products").
-		Columns("id", "date_time", "type", "reception_id").
-		Values(product.ID, product.DateTime, product.Type, product.ReceptionID)
+		receptionsQuery := psql.Select("r.id", "r.date_time", "r.pvz_id", "r.status").
+			From("receptions r").
+			Where(sq.Eq{"r.pvz_id": pvz.ID})
 
-	sqlQuery, args, err := query.ToSql()
-	if err != nil {
-		return err
-	}
+		if !startDate.IsZero() && !endDate.IsZero() {
+			receptionsQuery = receptionsQuery.Where(sq.And{
+				sq.GtOrEq{"r.date_time": startDate},
+				sq.LtOrEq{"r.date_time": endDate},
+			})
+		}
 
-	_, err = r.db.Exec(sqlQuery, args...)
-	return err
-}
+		sqlQuery, args, err = receptionsQuery.ToSql()
+		if err != nil {
+			return nil, err
+		}
 
-func (r *PVZRepository) GetLastProductInReception(receptionID uuid.UUID) (*models.Product, error) {
-	query := psql.Select("id", "date_time", "type", "reception_id").
-		From("products").
-		Where(sq.Eq{"reception_id": receptionID}).
-		OrderBy("date_time DESC").
-		Limit(1)
+		receptionRows, err := r.db.Query(sqlQuery, args...)
+		if err != nil {
+			return nil, err
+		}
 
-	sqlQuery, args, err := query.ToSql()
-	if err != nil {
-		return nil, err
-	}
+		for receptionRows.Next() {
+			reception := &models.Reception{}
+			err = receptionRows.Scan(&reception.ID, &reception.DateTime, &reception.PVZID, &reception.Status)
+			if err != nil {
+				receptionRows.Close()
+				return nil, err
+			}
 
-	product := &models.Product{}
-	err = r.db.QueryRow(sqlQuery, args...).Scan(
-		&product.ID,
-		&product.DateTime,
-		&product.Type,
-		&product.ReceptionID,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
+			receptionWithProducts := models.ReceptionWithProducts{
+				Reception: reception,
+				Products:  make([]models.Product, 0),
+			}
 
-	return product, nil
-}
+			productsQuery := psql.Select("p.id", "p.date_time", "p.type", "p.reception_id").
+				From("products p").
+				Where(sq.Eq{"p.reception_id": reception.ID})
 
-func (r *PVZRepository) DeleteProduct(productID uuid.UUID) error {
-	query := psql.Delete("products").
-		Where(sq.Eq{"id": productID})
+			sqlQuery, args, err = productsQuery.ToSql()
+			if err != nil {
+				receptionRows.Close()
+				return nil, err
+			}
 
-	sqlQuery, args, err := query.ToSql()
-	if err != nil {
-		return err
-	}
+			productRows, err := r.db.Query(sqlQuery, args...)
+			if err != nil {
+				receptionRows.Close()
+				return nil, err
+			}
 
-	result, err := r.db.Exec(sqlQuery, args...)
-	if err != nil {
-		return err
-	}
+			for productRows.Next() {
+				product := models.Product{}
+				err = productRows.Scan(&product.ID, &product.DateTime, &product.Type, &product.ReceptionID)
+				if err != nil {
+					productRows.Close()
+					receptionRows.Close()
+					return nil, err
+				}
+				receptionWithProducts.Products = append(receptionWithProducts.Products, product)
+			}
+			productRows.Close()
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return sql.ErrNoRows
-	}
+			pvzWithReceptions.Receptions = append(pvzWithReceptions.Receptions, receptionWithProducts)
+		}
+		receptionRows.Close()
 
-	return nil
-}
-
-func (r *PVZRepository) UpdateReception(reception *models.Reception) error {
-	query := psql.Update("receptions").
-		Set("status", reception.Status).
-		Where(sq.Eq{"id": reception.ID})
-
-	sqlQuery, args, err := query.ToSql()
-	if err != nil {
-		return err
+		pvzs = append(pvzs, pvzWithReceptions)
 	}
 
-	result, err := r.db.Exec(sqlQuery, args...)
-	if err != nil {
-		return err
+	if pvzs == nil {
+		pvzs = make([]*models.PVZWithReceptions, 0)
 	}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return sql.ErrNoRows
-	}
-
-	return nil
+	return pvzs, nil
 }

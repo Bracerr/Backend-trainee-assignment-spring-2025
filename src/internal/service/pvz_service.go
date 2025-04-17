@@ -4,7 +4,6 @@ import (
 	"avito-backend/src/internal/apperrors"
 	"avito-backend/src/internal/domain/models"
 	"avito-backend/src/internal/repository"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +15,7 @@ type PVZServiceInterface interface {
 	CreateProduct(pvzID uuid.UUID, productType string) (*models.Product, error)
 	DeleteLastProduct(pvzID uuid.UUID) error
 	CloseLastReception(pvzID uuid.UUID) (*models.Reception, error)
+	GetPVZsWithReceptions(startDate, endDate time.Time, offset, limit int) ([]*models.PVZWithReceptions, error)
 }
 
 type PVZService struct {
@@ -47,129 +47,19 @@ func (s *PVZService) Create(city string) (*models.PVZ, error) {
 	return pvz, nil
 }
 
-func (s *PVZService) CreateReception(pvzID uuid.UUID) (*models.Reception, error) {
-	_, err := s.pvzRepo.GetByID(pvzID)
-	if err == sql.ErrNoRows {
-		return nil, apperrors.ErrPVZNotFound
+func (s *PVZService) GetPVZsWithReceptions(startDate, endDate time.Time, offset, limit int) ([]*models.PVZWithReceptions, error) {
+	if !startDate.IsZero() && !endDate.IsZero() && startDate.After(endDate) {
+		return nil, apperrors.ErrInvalidDateRange
 	}
+
+	if offset < 0 || limit <= 0 {
+		return nil, apperrors.ErrInvalidPagination
+	}
+
+	pvzs, err := s.pvzRepo.GetPVZsWithReceptions(startDate, endDate, offset, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	activeReception, err := s.pvzRepo.GetActiveReceptionByPVZID(pvzID)
-	if err != nil {
-		return nil, err
-	}
-	if activeReception != nil {
-		return nil, apperrors.ErrActiveReceptionExists
-	}
-
-	reception := &models.Reception{
-		ID:       uuid.New(),
-		DateTime: time.Now(),
-		PVZID:    pvzID,
-		Status:   models.InProgress,
-	}
-
-	if err := s.pvzRepo.CreateReception(reception); err != nil {
-		return nil, err
-	}
-
-	return reception, nil
-}
-
-func (s *PVZService) CreateProduct(pvzID uuid.UUID, productType string) (*models.Product, error) {
-	pType := models.ProductType(productType)
-	if !pType.IsValid() {
-		return nil, apperrors.ErrInvalidProductType
-	}
-
-	_, err := s.pvzRepo.GetByID(pvzID)
-	if err == sql.ErrNoRows {
-		return nil, apperrors.ErrPVZNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	activeReception, err := s.pvzRepo.GetActiveReceptionByPVZID(pvzID)
-	if err != nil {
-		return nil, err
-	}
-	if activeReception == nil {
-		return nil, apperrors.ErrNoActiveReception
-	}
-
-	product := &models.Product{
-		ID:          uuid.New(),
-		DateTime:    time.Now(),
-		Type:        pType,
-		ReceptionID: activeReception.ID,
-	}
-
-	if err := s.pvzRepo.CreateProduct(product); err != nil {
-		return nil, err
-	}
-
-	return product, nil
-}
-
-func (s *PVZService) DeleteLastProduct(pvzID uuid.UUID) error {
-	_, err := s.pvzRepo.GetByID(pvzID)
-	if err == sql.ErrNoRows {
-		return apperrors.ErrPVZNotFound
-	}
-	if err != nil {
-		return err
-	}
-
-	activeReception, err := s.pvzRepo.GetActiveReceptionByPVZID(pvzID)
-	if err != nil {
-		return err
-	}
-	if activeReception == nil {
-		return apperrors.ErrNoActiveReception
-	}
-	if activeReception.Status == models.Closed {
-		return apperrors.ErrReceptionClosed
-	}
-
-	lastProduct, err := s.pvzRepo.GetLastProductInReception(activeReception.ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return apperrors.ErrNoProductsToDelete
-		}
-		return err
-	}
-
-	return s.pvzRepo.DeleteProduct(lastProduct.ID)
-}
-
-func (s *PVZService) CloseLastReception(pvzID uuid.UUID) (*models.Reception, error) {
-	_, err := s.pvzRepo.GetByID(pvzID)
-	if err == sql.ErrNoRows {
-		return nil, apperrors.ErrPVZNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	reception, err := s.pvzRepo.GetActiveReceptionByPVZID(pvzID)
-	if err != nil {
-		return nil, err
-	}
-	if reception == nil {
-		return nil, apperrors.ErrNoActiveReception
-	}
-	if reception.Status == models.Closed {
-		return nil, apperrors.ErrReceptionAlreadyClosed
-	}
-
-	reception.Status = models.Closed
-	err = s.pvzRepo.UpdateReception(reception)
-	if err != nil {
-		return nil, err
-	}
-
-	return reception, nil
+	return pvzs, nil
 }

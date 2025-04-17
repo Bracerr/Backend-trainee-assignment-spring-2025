@@ -5,11 +5,9 @@ import (
 	"avito-backend/src/internal/delivery/http/dto/request"
 	"avito-backend/src/internal/service"
 	"encoding/json"
-	"log"
 	"net/http"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
+	"strconv"
+	"time"
 )
 
 type PVZHandler struct {
@@ -50,140 +48,56 @@ func (h *PVZHandler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pvz)
 }
 
-func (h *PVZHandler) CreateReception(w http.ResponseWriter, r *http.Request) {
-	var req request.CreateReceptionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.sendError(w, "Неверный формат запроса", http.StatusBadRequest)
-		return
-	}
+func (h *PVZHandler) GetPVZs(w http.ResponseWriter, r *http.Request) {
+	var startDate, endDate time.Time
 
-	if req.PVZID == "" {
-		h.sendError(w, "ID ПВЗ обязателен", http.StatusBadRequest)
-		return
-	}
-
-	pvzID, err := uuid.Parse(req.PVZID)
-	if err != nil {
-		h.sendError(w, "Неверный формат ID ПВЗ", http.StatusBadRequest)
-		return
-	}
-
-	reception, err := h.pvzService.CreateReception(pvzID)
-	if err != nil {
-		switch err {
-		case apperrors.ErrPVZNotFound:
-			h.sendError(w, "ПВЗ не найден", http.StatusBadRequest)
-		case apperrors.ErrActiveReceptionExists:
-			h.sendError(w, "Уже есть активная приемка", http.StatusBadRequest)
-		default:
-			log.Println(err)
-			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+	if startDateStr := r.URL.Query().Get("startDate"); startDateStr != "" {
+		var err error
+		startDate, err = time.Parse(time.RFC3339, startDateStr)
+		if err != nil {
+			h.sendError(w, "Неверный формат начальной даты", http.StatusBadRequest)
+			return
 		}
-		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(reception)
-}
-
-func (h *PVZHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
-	var req request.CreateProductRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.sendError(w, "Неверный формат запроса", http.StatusBadRequest)
-		return
-	}
-
-	if req.PVZID == "" {
-		h.sendError(w, "ID ПВЗ обязателен", http.StatusBadRequest)
-		return
-	}
-	if req.Type == "" {
-		h.sendError(w, "Тип товара обязателен", http.StatusBadRequest)
-		return
-	}
-
-	pvzID, err := uuid.Parse(req.PVZID)
-	if err != nil {
-		h.sendError(w, "Неверный формат ID ПВЗ", http.StatusBadRequest)
-		return
-	}
-
-	product, err := h.pvzService.CreateProduct(pvzID, req.Type)
-	if err != nil {
-		switch err {
-		case apperrors.ErrNoActiveReception:
-			h.sendError(w, "Нет активной приемки", http.StatusBadRequest)
-		case apperrors.ErrPVZNotFound:
-			h.sendError(w, "ПВЗ не найден", http.StatusBadRequest)
-		case apperrors.ErrInvalidProductType:
-			h.sendError(w, "Недопустимый тип товара", http.StatusBadRequest)
-		default:
-			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+	if endDateStr := r.URL.Query().Get("endDate"); endDateStr != "" {
+		var err error
+		endDate, err = time.Parse(time.RFC3339, endDateStr)
+		if err != nil {
+			h.sendError(w, "Неверный формат конечной даты", http.StatusBadRequest)
+			return
 		}
-		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(product)
-}
-
-func (h *PVZHandler) DeleteLastProduct(w http.ResponseWriter, r *http.Request) {
-	pvzIDStr := chi.URLParam(r, "pvzId")
-	if pvzIDStr == "" {
-		h.sendError(w, "ID ПВЗ обязателен", http.StatusBadRequest)
-		return
-	}
-
-	pvzID, err := uuid.Parse(pvzIDStr)
-	if err != nil {
-		h.sendError(w, "Неверный формат ID ПВЗ", http.StatusBadRequest)
-		return
-	}
-
-	err = h.pvzService.DeleteLastProduct(pvzID)
-	if err != nil {
-		switch err {
-		case apperrors.ErrPVZNotFound:
-			h.sendError(w, "ПВЗ не найден", http.StatusBadRequest)
-		case apperrors.ErrNoActiveReception:
-			h.sendError(w, "Нет активной приемки", http.StatusBadRequest)
-		case apperrors.ErrReceptionClosed:
-			h.sendError(w, "Приемка уже закрыта", http.StatusBadRequest)
-		case apperrors.ErrNoProductsToDelete:
-			h.sendError(w, "Нет товаров для удаления", http.StatusBadRequest)
-		default:
-			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+	page := 1
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		var err error
+		page, err = strconv.Atoi(pageStr)
+		if err != nil || page < 1 {
+			h.sendError(w, "Неверный номер страницы", http.StatusBadRequest)
+			return
 		}
-		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-}
-
-func (h *PVZHandler) CloseLastReception(w http.ResponseWriter, r *http.Request) {
-	pvzIDStr := chi.URLParam(r, "pvzId")
-	if pvzIDStr == "" {
-		h.sendError(w, "ID ПВЗ обязателен", http.StatusBadRequest)
-		return
+	limit := 10
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		var err error
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil || limit < 1 || limit > 30 {
+			h.sendError(w, "Неверное количество элементов на странице", http.StatusBadRequest)
+			return
+		}
 	}
 
-	pvzID, err := uuid.Parse(pvzIDStr)
-	if err != nil {
-		h.sendError(w, "Неверный формат ID ПВЗ", http.StatusBadRequest)
-		return
-	}
+	offset := (page - 1) * limit
 
-	reception, err := h.pvzService.CloseLastReception(pvzID)
+	pvzs, err := h.pvzService.GetPVZsWithReceptions(startDate, endDate, offset, limit)
 	if err != nil {
 		switch err {
-		case apperrors.ErrPVZNotFound:
-			h.sendError(w, "ПВЗ не найден", http.StatusBadRequest)
-		case apperrors.ErrNoActiveReception:
-			h.sendError(w, "Нет активной приемки", http.StatusBadRequest)
-		case apperrors.ErrReceptionAlreadyClosed:
-			h.sendError(w, "Приемка уже закрыта", http.StatusBadRequest)
+		case apperrors.ErrInvalidDateRange:
+			h.sendError(w, "Неверный диапазон дат", http.StatusBadRequest)
+		case apperrors.ErrInvalidPagination:
+			h.sendError(w, "Неверные параметры пагинации", http.StatusBadRequest)
 		default:
 			h.sendError(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		}
@@ -192,7 +106,7 @@ func (h *PVZHandler) CloseLastReception(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(reception)
+	json.NewEncoder(w).Encode(pvzs)
 }
 
 func (h *PVZHandler) sendError(w http.ResponseWriter, message string, code int) {

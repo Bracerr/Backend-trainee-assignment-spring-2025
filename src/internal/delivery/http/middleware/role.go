@@ -8,25 +8,57 @@ import (
 	"net/http"
 )
 
-func RequireRole(role models.Role) func(next http.Handler) http.Handler {
+func RequireRole(role models.Role) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userRole, ok := r.Context().Value(ctxkeys.UserRoleKey).(string)
-			if !ok || userRole == "" {
+			userRole := r.Context().Value(ctxkeys.UserRoleKey)
+
+			if userRole == nil {
 				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusUnauthorized)
-				json.NewEncoder(w).Encode(response.ErrorResponse{
-					Message: "Отсутствует роль пользователя",
-				})
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(response.ErrorResponse{Message: "Доступ запрещен"})
 				return
 			}
 
-			if userRole != string(role) {
+			roleStr := userRole.(string)
+
+			if roleStr != string(role) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(response.ErrorResponse{
-					Message: "Доступ запрещен",
-				})
+				json.NewEncoder(w).Encode(response.ErrorResponse{Message: "Доступ запрещен"})
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func RequireRoles(roles []models.Role) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userRole := r.Context().Value(ctxkeys.UserRoleKey)
+
+			if userRole == nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(response.ErrorResponse{Message: "Доступ запрещен"})
+				return
+			}
+
+			roleStr := userRole.(string)
+			hasRole := false
+			for _, role := range roles {
+				if roleStr == string(role) {
+					hasRole = true
+					break
+				}
+			}
+
+			if !hasRole {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(response.ErrorResponse{Message: "Доступ запрещен"})
 				return
 			}
 

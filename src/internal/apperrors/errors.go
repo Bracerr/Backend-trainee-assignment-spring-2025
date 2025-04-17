@@ -17,4 +17,6 @@ var (
 	ErrNoProductsToDelete     = errors.New("нет товаров для удаления")
 	ErrNoProductsInReception  = errors.New("нет товаров в приемке")
 	ErrReceptionAlreadyClosed = errors.New("приемка уже закрыта")
+	ErrInvalidDateRange       = errors.New("неверный диапазон дат")
+	ErrInvalidPagination      = errors.New("неверные параметры пагинации")
 )
