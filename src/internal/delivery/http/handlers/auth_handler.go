@@ -50,8 +50,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" || req.Role == "" {
-		h.sendError(w, "Отсутствуют обязательные поля", http.StatusBadRequest)
+	if req.Email == "" {
+		h.sendError(w, "Отсутствует обязательное поле email", http.StatusBadRequest)
+		return
+	}
+
+	if req.Role == "" {
+		h.sendError(w, "Отсутствует обязательное поле role", http.StatusBadRequest)
+		return
+	}
+
+	if req.Password == "" {
+		h.sendError(w, "Отсутствует обязательное поле password", http.StatusBadRequest)
 		return
 	}
 
@@ -85,8 +95,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		h.sendError(w, "Отсутствуют обязательные поля", http.StatusUnauthorized)
+	if req.Email == "" {
+		h.sendError(w, "Отсутствует обязательное поле email", http.StatusUnauthorized)
+		return
+	}
+
+	if req.Password == "" {
+		h.sendError(w, "Отсутствует обязательное поле password", http.StatusUnauthorized)
 		return
 	}
 
