@@ -3,6 +3,7 @@ package handlers
 import (
 	"avito-backend/src/internal/apperrors"
 	"avito-backend/src/internal/delivery/http/dto/request"
+	"avito-backend/src/pkg/metrics"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -42,6 +43,8 @@ func (h *PVZHandler) CreateReception(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	metrics.ReceptionsCreatedTotal.Inc()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

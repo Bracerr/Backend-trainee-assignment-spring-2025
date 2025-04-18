@@ -37,7 +37,7 @@ func (r *Router) InitRoutes() *chi.Mux {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-
+	router.Use(appmiddleware.MetricsMiddleware)
 	router.Use(chimiddleware.Logger)
 	router.Use(chimiddleware.Recoverer)
 	router.Use(chimiddleware.RequestID)

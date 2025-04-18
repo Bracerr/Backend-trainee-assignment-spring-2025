@@ -4,6 +4,7 @@ import (
 	"avito-backend/src/internal/apperrors"
 	"avito-backend/src/internal/delivery/http/dto/request"
 	"avito-backend/src/internal/service"
+	"avito-backend/src/pkg/metrics"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -42,6 +43,7 @@ func (h *PVZHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	metrics.PvzCreatedTotal.Inc()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
