@@ -9,3 +9,5 @@
 .idea/
 .vscode/ 
 .coverage/
+logs/*.log
+!logs/.gitkeep

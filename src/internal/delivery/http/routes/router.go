@@ -6,9 +6,8 @@ import (
 	"avito-backend/src/internal/domain/models"
 	"avito-backend/src/pkg/jwt"
 
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
-
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 )
 
@@ -38,10 +37,8 @@ func (r *Router) InitRoutes() *chi.Mux {
 		MaxAge:           300,
 	}))
 	router.Use(appmiddleware.MetricsMiddleware)
-	router.Use(chimiddleware.Logger)
-	router.Use(chimiddleware.Recoverer)
-	router.Use(chimiddleware.RequestID)
-	router.Use(chimiddleware.RealIP)
+	router.Use(middleware.RequestID)
+	router.Use(appmiddleware.LoggerMiddleware)
 
 	router.Post("/register", r.authHandler.Register)
 	router.Post("/login", r.authHandler.Login)

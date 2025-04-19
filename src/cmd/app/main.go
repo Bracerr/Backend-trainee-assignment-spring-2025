@@ -19,11 +19,14 @@ import (
 	"avito-backend/src/internal/service"
 	"avito-backend/src/pkg/database"
 	"avito-backend/src/pkg/jwt"
+	"avito-backend/src/pkg/logger"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
+	logger.InitLogger()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
