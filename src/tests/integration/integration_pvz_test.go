@@ -12,7 +12,6 @@ import (
 
 	"avito-backend/src/pkg/database"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,9 +30,6 @@ func cleanupDatabase(db *sql.DB) error {
 }
 
 func TestPVZFullCycle(t *testing.T) {
-	if err := godotenv.Load(".env.test"); err != nil {
-		t.Fatalf("Ошибка загрузки .env.test: %v", err)
-	}
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		os.Getenv("POSTGRES_TEST_USER"),
 		os.Getenv("POSTGRES_TEST_PASSWORD"),
