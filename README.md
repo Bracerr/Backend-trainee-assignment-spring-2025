@@ -59,6 +59,33 @@ docker compose up --build -d
 Протофайлы для теста gRPC находятся в директории [grpc](src/internal/delivery/grpc/pvz.proto)  
 `src/internal/delivery/grpc/pvz.proto`
 
+### Эндпоинты для аутентификации
+
+POST http://localhost:8080/register - Регистрация нового пользователя.  
+POST http://localhost:8080/login - Вход пользователя в систему.  
+POST http://localhost:8080/dummyLogin - Псевдологин для тестирования.  
+### Эндпоинты для работы с PVZ  
+
+#### Роли: ModeratorRole   
+POST http://localhost:8080/pvz - Создание нового PVZ.  
+
+#### Роли: EmployeeRole  
+
+POST http://localhost:8080/receptions - Создание новой приемки.  
+POST http://localhost:8080/products - Создание нового продукта.  
+POST http://localhost:8080/pvz/{pvzId}/delete_last_product - Удаление последнего продукта из PVZ.  
+POST http://localhost:8080/pvz/{pvzId}/close_last_reception - Закрытие последней приемки в PVZ.  
+
+#### Роли: EmployeeRole и ModeratorRole  
+
+GET http://localhost:8080/pvz - Получение списка PVZ.
+
+### Эндпоинт метрик
+GET http://localhost:9000/metrics
+
+### gRPC Эндпоинт
+localhost:3000 - Метод GetPVZList
+
 
 ## Тестирование 
 Unit тесты лежат рядом с тестируемым функционалом, если их несколько, то они упаковы в дерикторию tests. Например [HandlersUnitTests](src/internal/delivery/http/handlers/tests/)  
