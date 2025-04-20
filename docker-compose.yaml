@@ -1,6 +1,60 @@
 version: '3.8'
 
 services:
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: avito_backend_app
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+      - "${METRICS_PORT}:${METRICS_PORT}"
+    environment:
+      SERVER_PORT: 8080
+      METRICS_PORT: 9000
+      JWT_SIGNING_KEY: your-secret-key
+      JWT_TOKEN_DURATION: 24h
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_TEST_HOST: postgres_test
+      POSTGRES_TEST_PORT: 5432
+      POSTGRES_TEST_USER: ${POSTGRES_USER}
+      POSTGRES_TEST_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_TEST_DB: ${POSTGRES_DB}_test
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres_test:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grpc:
+    build:
+      context: .
+      dockerfile: Dockerfile.grpc
+    container_name: avito_backend_grpc
+    ports:
+      - "3000:3000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: postgres:15-alpine
     container_name: avito_backend_db
