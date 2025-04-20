@@ -195,6 +195,21 @@ func TestPVZService_DeleteLastProduct(t *testing.T) {
 			wantErr: apperrors.ErrNoProductsToDelete,
 		},
 		{
+			name:  "Reception Already Closed",
+			pvzID: uuid.New(),
+			mockBehavior: func(repo *MockPVZRepository) {
+				repo.On("GetByID", mock.AnythingOfType("uuid.UUID")).Return(&models.PVZ{
+					ID:   uuid.New(),
+					City: "Москва",
+				}, nil)
+				repo.On("GetActiveReceptionByPVZID", mock.AnythingOfType("uuid.UUID")).Return(&models.Reception{
+					ID:     uuid.New(),
+					Status: models.Closed,
+				}, nil)
+			},
+			wantErr: apperrors.ErrReceptionClosed,
+		},
+		{
 			name:  "Repository Error",
 			pvzID: uuid.New(),
 			mockBehavior: func(repo *MockPVZRepository) {

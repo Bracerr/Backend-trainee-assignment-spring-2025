@@ -3,10 +3,10 @@ package repository_test
 import (
 	"avito-backend/src/internal/domain/models"
 	"avito-backend/src/internal/repository"
+	"database/sql"
 	"regexp"
 	"testing"
 	"time"
-	"database/sql"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -95,4 +95,88 @@ func TestPVZRepository_GetPVZsWithReceptions_DBError(t *testing.T) {
 	require.Error(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 	assert.Nil(t, result)
+}
+
+func TestPVZRepository_Create(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := repository.NewPVZRepository(db)
+	pvzID := uuid.New()
+	now := time.Now()
+
+	pvz := &models.PVZ{
+		ID:               pvzID,
+		RegistrationDate: now,
+		City:             models.Moscow,
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO pvz (id,registration_date,city) VALUES ($1,$2,$3)`)).
+			WithArgs(pvz.ID, pvz.RegistrationDate, pvz.City).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+
+		err := repo.Create(pvz)
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DB Error", func(t *testing.T) {
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO pvz (id,registration_date,city) VALUES ($1,$2,$3)`)).
+			WithArgs(pvz.ID, pvz.RegistrationDate, pvz.City).
+			WillReturnError(sql.ErrConnDone)
+
+		err := repo.Create(pvz)
+		require.Error(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestPVZRepository_GetByID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := repository.NewPVZRepository(db)
+	pvzID := uuid.New()
+	now := time.Now()
+
+	t.Run("Success", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id", "registration_date", "city"}).
+			AddRow(pvzID, now, string(models.Moscow))
+
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, registration_date, city FROM pvz WHERE id = $1`)).
+			WithArgs(pvzID).
+			WillReturnRows(rows)
+
+		pvz, err := repo.GetByID(pvzID)
+		require.NoError(t, err)
+		require.NotNil(t, pvz)
+		assert.Equal(t, pvzID, pvz.ID)
+		assert.Equal(t, models.Moscow, pvz.City)
+		assert.Equal(t, now.Unix(), pvz.RegistrationDate.Unix()) 
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, registration_date, city FROM pvz WHERE id = $1`)).
+			WithArgs(pvzID).
+			WillReturnError(sql.ErrNoRows)
+
+		pvz, err := repo.GetByID(pvzID)
+		require.Error(t, err)
+		assert.Equal(t, sql.ErrNoRows, err)
+		assert.Nil(t, pvz)
+	})
+
+	t.Run("DB Error", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, registration_date, city FROM pvz WHERE id = $1`)).
+			WithArgs(pvzID).
+			WillReturnError(sql.ErrConnDone)
+
+		pvz, err := repo.GetByID(pvzID)
+		require.Error(t, err)
+		assert.Equal(t, sql.ErrConnDone, err)
+		assert.Nil(t, pvz)
+	})
 }

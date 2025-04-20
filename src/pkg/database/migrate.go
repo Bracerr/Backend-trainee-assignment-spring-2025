@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 
@@ -26,7 +27,7 @@ func RunMigrations(db *sql.DB, migrationsPath string) error {
 	}
 
 	if err := m.Up(); err != nil {
-		if err == migrate.ErrNoChange {
+		if errors.Is(err, migrate.ErrNoChange) {
 			log.Println("Миграции не требуются: база данных в актуальном состоянии")
 			return nil
 		}

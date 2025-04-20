@@ -25,10 +25,16 @@ func LoggerMiddleware(next http.Handler) http.Handler {
 		r = r.WithContext(ctx)
 		next.ServeHTTP(ww, r)
 
-		slog.InfoContext(ctx, "запрос завершен",
+		attrs := []any{
 			"duration_ms", fmt.Sprintf("%.2f", float64(time.Since(start).Milliseconds())),
 			"status", ww.Status(),
 			"size", ww.BytesWritten(),
-		)
+		}
+
+		if requestID != "" {
+			attrs = append(attrs, "request_id", requestID)
+		}
+
+		slog.InfoContext(ctx, "запрос завершен", attrs...)
 	})
 }
