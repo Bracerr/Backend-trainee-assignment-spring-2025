@@ -32,11 +32,11 @@ func cleanupDatabase(db *sql.DB) error {
 
 func TestPVZFullCycle(t *testing.T) {
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		os.Getenv("POSTGRES_TEST_USER"),
-		os.Getenv("POSTGRES_TEST_PASSWORD"),
+		os.Getenv("POSTGRES_USER"),
+		os.Getenv("POSTGRES_PASSWORD"),
 		os.Getenv("POSTGRES_TEST_HOST"),
-		os.Getenv("POSTGRES_TEST_PORT"),
-		os.Getenv("POSTGRES_TEST_DB"),
+		os.Getenv("POSTGRES_PORT"),
+		os.Getenv("POSTGRES_DB") + "_test",
 	)
 
 	db, err := sql.Open("postgres", dbURL)
