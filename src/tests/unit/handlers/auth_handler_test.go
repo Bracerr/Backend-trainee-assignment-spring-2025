@@ -185,7 +185,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			mockBehavior: func(s *MockAuthService) {
 			},
 			expectedCode: http.StatusUnauthorized,
-			expectedBody: "{\"message\":\"Отсутствуют обязательные поля\"}\n",
+			expectedBody: "{\"message\":\"Отсутствуют учетные данные\"}\n",
 		},
 		{
 			name: "Empty Password",
@@ -196,7 +196,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			mockBehavior: func(s *MockAuthService) {
 			},
 			expectedCode: http.StatusUnauthorized,
-			expectedBody: "{\"message\":\"Отсутствуют обязательные поля\"}\n",
+			expectedBody: "{\"message\":\"Отсутствуют учетные данные\"}\n",
 		},
 	}
 

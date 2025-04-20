@@ -12,6 +12,7 @@ type Config struct {
 	JWTSigningKey    string
 	JWTTokenDuration string
 	DatabaseURL      string
+	MetricsPort      string
 }
 
 func LoadConfig() (*Config, error) {
@@ -31,6 +32,7 @@ func LoadConfig() (*Config, error) {
 		ServerPort:       getEnvVar("SERVER_PORT", "8080"),
 		JWTSigningKey:    getEnvVar("JWT_SIGNING_KEY", "default-secret-key"),
 		JWTTokenDuration: getEnvVar("JWT_TOKEN_DURATION", "24h"),
+		MetricsPort:      getEnvVar("METRICS_PORT", "9000"),
 		DatabaseURL:      dbURL,
 	}, nil
 }
