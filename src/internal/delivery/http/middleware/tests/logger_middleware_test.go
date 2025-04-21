@@ -15,6 +15,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type contextHandler struct {
+    slog.Handler
+}
+
+func (h *contextHandler) Handle(ctx context.Context, r slog.Record) error {
+    if requestID, ok := ctx.Value(middleware.RequestIDKey).(string); ok {
+        r.Add("request_id", requestID)
+    }
+    return h.Handler.Handle(ctx, r)
+}
+
 func TestLoggerMiddleware(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -57,37 +68,40 @@ func TestLoggerMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var logBuffer bytes.Buffer
-			handler := slog.NewJSONHandler(&logBuffer, &slog.HandlerOptions{
+			
+			baseHandler := slog.NewJSONHandler(&logBuffer, &slog.HandlerOptions{
 				Level: slog.LevelDebug,
 			})
+			
+			handler := &contextHandler{baseHandler}
 			slog.SetDefault(slog.New(handler))
-
+	
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.handlerStatus)
 				w.Write([]byte(tt.handlerBody))
 			})
-
+	
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			if tt.requestID != "" {
 				ctx := context.WithValue(req.Context(), middleware.RequestIDKey, tt.requestID)
 				req = req.WithContext(ctx)
 			}
-
+	
 			rec := httptest.NewRecorder()
-
+	
 			appMiddleware.LoggerMiddleware(nextHandler).ServeHTTP(rec, req)
-
+	
 			assert.Equal(t, tt.handlerStatus, rec.Code)
 			assert.Equal(t, tt.handlerBody, rec.Body.String())
-
+	
 			var logEntry map[string]interface{}
 			err := json.Unmarshal(logBuffer.Bytes(), &logEntry)
 			assert.NoError(t, err, "Лог должен быть валидным JSON")
-
+	
 			assert.Contains(t, logEntry, "time")
 			assert.Contains(t, logEntry, "level")
 			assert.Contains(t, logEntry, "duration_ms")
-
+	
 			for key, value := range tt.expectedFields {
 				assert.Equal(t, value, logEntry[key],
 					"Поле %s должно иметь значение %v, получено %v",

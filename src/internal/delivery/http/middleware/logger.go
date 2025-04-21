@@ -31,10 +31,6 @@ func LoggerMiddleware(next http.Handler) http.Handler {
 			"size", ww.BytesWritten(),
 		}
 
-		if requestID != "" {
-			attrs = append(attrs, "request_id", requestID)
-		}
-
 		slog.InfoContext(ctx, "запрос завершен", attrs...)
 	})
 }
