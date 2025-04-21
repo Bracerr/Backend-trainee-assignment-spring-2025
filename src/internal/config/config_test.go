@@ -138,5 +138,5 @@ func TestLoadConfig_EnvFileError(t *testing.T) {
 	config, err := LoadConfig()
 	assert.Error(t, err)
 	assert.Nil(t, config)
-	assert.Contains(t, err.Error(), "no such file or directory")
+	assert.Contains(t, err.Error(), "error loading .env file")
 }
