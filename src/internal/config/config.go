@@ -17,7 +17,7 @@ type Config struct {
 
 func LoadConfig() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error loading .env file: %w", err)
 	}
 
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",

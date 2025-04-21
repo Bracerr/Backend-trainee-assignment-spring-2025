@@ -1,23 +1,39 @@
 package routes
 
 import (
-	"avito-backend/src/internal/delivery/http/handlers"
 	appmiddleware "avito-backend/src/internal/delivery/http/middleware"
 	"avito-backend/src/internal/domain/models"
 	"avito-backend/src/pkg/jwt"
+
+	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 )
 
+type AuthHandlerInterface interface {
+	Register(w http.ResponseWriter, r *http.Request)
+	Login(w http.ResponseWriter, r *http.Request)
+	DummyLogin(w http.ResponseWriter, r *http.Request)
+}
+
+type PVZHandlerInterface interface {
+	Create(w http.ResponseWriter, r *http.Request)
+	GetPVZs(w http.ResponseWriter, r *http.Request)
+	CreateReception(w http.ResponseWriter, r *http.Request)
+	CreateProduct(w http.ResponseWriter, r *http.Request)
+	DeleteLastProduct(w http.ResponseWriter, r *http.Request)
+	CloseLastReception(w http.ResponseWriter, r *http.Request)
+}
+
 type Router struct {
-	authHandler  *handlers.AuthHandler
-	pvzHandler   *handlers.PVZHandler
+	authHandler  AuthHandlerInterface
+	pvzHandler   PVZHandlerInterface
 	tokenManager *jwt.TokenManager
 }
 
-func NewRouter(authHandler *handlers.AuthHandler, pvzHandler *handlers.PVZHandler, tokenManager *jwt.TokenManager) *Router {
+func NewRouter(authHandler AuthHandlerInterface, pvzHandler PVZHandlerInterface, tokenManager *jwt.TokenManager) *Router {
 	return &Router{
 		authHandler:  authHandler,
 		pvzHandler:   pvzHandler,

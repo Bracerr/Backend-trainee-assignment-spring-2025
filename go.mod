@@ -3,6 +3,7 @@ module avito-backend
 go 1.23.6
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/cors v1.2.1
